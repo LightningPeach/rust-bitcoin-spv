@@ -67,8 +67,11 @@ pub fn main() {
             _ => network = Network::Bitcoin
         }
     }
+    // For some magic reason cli does not work properly, set needed values here(network, peers)
+    network = Network::Regtest;
 
-    let peers = get_peers();
+    let mut peers = get_peers();
+    peers.push(SocketAddr::from_str("127.0.0.1:18333").unwrap());
     let mut connections = 1;
     if let Some(numstring) = find_arg("connections") {
         connections = numstring.parse().unwrap();

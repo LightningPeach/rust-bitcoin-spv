@@ -18,6 +18,7 @@ extern crate bitcoin_spv;
 extern crate log;
 extern crate rand;
 extern crate simple_logger;
+extern crate lightning;
 
 use std::env::args;
 
@@ -26,6 +27,23 @@ use bitcoin_spv::spv::SPV;
 use log::Level;
 use std::net::SocketAddr;
 use std::path::Path;
+
+use lightning::chain::chaininterface::ChainListener;
+use bitcoin::blockdata::block::BlockHeader;
+use bitcoin::blockdata::transaction::Transaction;
+use std::sync::Arc;
+
+pub struct LogChainListener;
+
+impl ChainListener for LogChainListener {
+    fn block_connected(&self, header: &BlockHeader, height: u32, txn_matched: &[&Transaction], indexes_of_txn_matched: &[u32]) {
+        println!("[LogChainListener] block_connected")
+    }
+
+    fn block_disconnected(&self, header: &BlockHeader) {
+        println!("[LogChainListener] block_disconnected")
+    }
+}
 
 /// simple test drive that connects to a local bitcoind
 pub fn main() {
@@ -86,6 +104,9 @@ pub fn main() {
     for bind in get_listeners() {
         spv.listen(&bind).expect(format!("can not listen to {:?}", bind).as_str());
     }
+    let log_chain_listener = Arc::new(LogChainListener);
+    let weak = Arc::downgrade(&log_chain_listener);
+    spv.get_chain_watch_interface().register_listener(weak);
     spv.start(peers, connections, find_opt("nodns"));
 }
 

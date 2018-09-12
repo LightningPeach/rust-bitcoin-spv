@@ -21,7 +21,7 @@
 //!
 
 
-use bitcoin::blockdata::block::{Block, LoneBlockHeader};
+use bitcoin::blockdata::block::{Block, LoneBlockHeader, BlockHeader};
 use bitcoin::blockdata::constants::genesis_block;
 use bitcoin::blockdata::script::Script;
 use bitcoin::blockdata::transaction::Transaction;
@@ -57,6 +57,8 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use std::cmp::min;
 use std::sync::atomic::{AtomicBool,Ordering};
+
+use std::ops::Deref;
 
 
 // peer is considered stale and banned if not
@@ -169,7 +171,25 @@ impl Node {
     }
 
     fn download_blocks(&self, blocks: Vec<Sha256dHash>) {
-        // TODO
+        info!("try to download {} blocks", blocks.len());
+
+        let locked_peers = self.inner.peers.deref();
+        let unlocked_peers = locked_peers.read().unwrap();
+        let peers = unlocked_peers.deref();
+
+        let mut inventories = Vec::new();
+        for hash in &blocks {
+            let inv = Inventory{
+                inv_type: InvType::Block,
+                hash: *hash,
+            };
+            inventories.push(inv)
+        }
+
+        for (peer_id, peer) in peers {
+            // TODO(evg): process ProcessResult
+             self.send(*peer_id, &NetworkMessage::GetData(inventories.clone())).unwrap();
+        }
     }
 
     /// called from dispatcher whenever a peer is disconnected
@@ -293,6 +313,7 @@ impl Node {
         // header should be known already, otherwise it might be spam
         if let Some(block_node) = blockchain.get_block(block.bitcoin_hash()) {
             info!("processed block {} height={}", block.bitcoin_hash(), block_node.height);
+            self.inner.connector.block_connected(block, block_node.height);
             return Ok(ProcessResult::Ack);
         }
         Ok(ProcessResult::Ignored)
